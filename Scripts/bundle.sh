@@ -2,13 +2,16 @@
 # Builds Accentuate.app (release, ad-hoc signed) into ./build.
 #   Scripts/bundle.sh             build only
 #   Scripts/bundle.sh --install   also install to /Applications and relaunch
-# Set SIGN_IDENTITY to use a real certificate instead of ad-hoc ("-").
+# Signs with the Developer ID from .env (IDENTITY_DARWIN_CODE) when there is one,
+# otherwise ad-hoc. VERSION sets the app version (default 1.0.0).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source Scripts/load-env.sh
 
 APP=build/Accentuate.app
 ID=com.nbonamy.accentuate
-SIGN_IDENTITY=${SIGN_IDENTITY:--}
+VERSION=${VERSION:-1.0.0}
+SIGN_IDENTITY=${IDENTITY_DARWIN_CODE:--}
 
 swift build -c release
 BIN_DIR=$(swift build -c release --show-bin-path)
@@ -28,21 +31,24 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>Accentuate</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleDisplayName</key><string>Accentuate</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleVersion</key><string>$VERSION</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
 </dict>
 </plist>
 PLIST
 
-# The designated requirement pins the identity to the bundle id, so the Accessibility
-# permission survives rebuilds even with an ad-hoc signature.
-codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID" \
-    -r="designated => identifier \"$ID\"" "$APP/Contents/Resources/Accentuate_AccentuateCore.bundle"
-codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID" \
-    -r="designated => identifier \"$ID\"" "$APP"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    # Ad-hoc: pin the identity to the bundle id so the Accessibility permission
+    # survives rebuilds.
+    SIGN=(codesign --force --sign - --identifier "$ID" -r="designated => identifier \"$ID\"")
+else
+    SIGN=(codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID" --options runtime --timestamp)
+fi
+"${SIGN[@]}" "$APP/Contents/Resources/Accentuate_AccentuateCore.bundle"
+"${SIGN[@]}" "$APP"
 
 echo "Built $APP"
 

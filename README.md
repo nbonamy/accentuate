@@ -6,7 +6,7 @@ Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into 
 
 ## Using it
 
-1. Run `Scripts/bundle.sh --install`. It builds Accentuate, copies it to `/Applications` and launches it.
+1. Download the latest zip from [Releases](https://github.com/nbonamy/accentuate/releases), drag Accentuate to `/Applications` and open it. (Or run `Scripts/bundle.sh --install` to build it yourself.)
 2. Allow Accentuate under **System Settings → Privacy & Security → Accessibility**. The menu bar item shows the status and links straight to that pane.
 3. Type. Accents are added as soon as you hit space, punctuation, tab or return.
 
@@ -28,7 +28,8 @@ Menu bar options:
 
 ```
 swift test            # unit tests for the core logic
-Scripts/bundle.sh     # build a signed Accentuate.app in ./build
+Scripts/bundle.sh     # build a signed Accentuate.app in ./build (add --install for /Applications)
+Scripts/release.sh 1.0.0   # sign, notarize and publish a GitHub release
 ```
 
 Accents come from the French spell checker built into macOS, so no network or extra download is needed. `Tools/build_dictionary.py` regenerates the word-frequency table from `Tools/dict-src/fr_50k.txt`.
