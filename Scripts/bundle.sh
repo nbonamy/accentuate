@@ -13,13 +13,18 @@ ID=com.nbonamy.accentuate
 VERSION=${VERSION:-1.0.0}
 SIGN_IDENTITY=${IDENTITY_DARWIN_CODE:--}
 
-swift build -c release
-BIN_DIR=$(swift build -c release --show-bin-path)
+# SwiftPM stamps binaries with the deployment target as their SDK version, and macOS only
+# gives an app the current look (Liquid Glass) when it was built with a current SDK.
+SDK_VERSION=$(xcrun --sdk macosx --show-sdk-version)
+BUILD=(swift build -c release -Xlinker -platform_version -Xlinker macos -Xlinker 13.0 -Xlinker "$SDK_VERSION")
+"${BUILD[@]}"
+BIN_DIR=$("${BUILD[@]}" --show-bin-path)
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Accentuate" "$APP/Contents/MacOS/Accentuate"
 cp -R "$BIN_DIR"/Accentuate_AccentuateCore.bundle "$APP/Contents/Resources/"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -28,6 +33,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleExecutable</key><string>Accentuate</string>
     <key>CFBundleIdentifier</key><string>$ID</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleName</key><string>Accentuate</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleDisplayName</key><string>Accentuate</string>

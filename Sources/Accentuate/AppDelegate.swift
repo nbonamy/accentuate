@@ -16,13 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSLog("Accentuate: cannot load dictionary: \(error)")
         }
 
-        statusItem.button?.title = "é"
+        statusItem.button?.image = MenuBarIcon.make()
         statusItem.menu = {
             let menu = NSMenu()
             menu.delegate = self
             return menu
         }()
         updateIcon()
+        NotificationCenter.default.addObserver(forName: .settingsChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.updateIcon()
+        }
+        // Started by hand with no menu bar icon: show the settings, or nothing would seem to happen.
+        if !Settings.showMenuBarIcon && !launchedAtLogin() { SettingsWindowController.shared.show() }
 
         // Ask once (shows the system prompt), then poll until the permission is granted.
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
@@ -30,6 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.tapController?.installIfTrusted()
         }
         tapController?.installIfTrusted()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        SettingsWindowController.shared.show()
+        return true
+    }
+
+    private func launchedAtLogin() -> Bool {
+        NSAppleEventManager.shared().currentAppleEvent?
+            .paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
     // MARK: Menu
@@ -46,18 +61,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(french)
 
         menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
 
-        if AXIsProcessTrusted() {
-            let status = NSMenuItem(title: "Accessibility: allowed", action: nil, keyEquivalent: "")
-            status.isEnabled = false
-            menu.addItem(status)
-        } else {
+        if !AXIsProcessTrusted() {
             menu.addItem(NSMenuItem(title: "Grant Accessibility Access…", action: #selector(openAccessibilitySettings), keyEquivalent: ""))
         }
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Accentuate", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         menu.items.forEach { if $0.action != #selector(NSApplication.terminate(_:)) { $0.target = self } }
+    }
+
+    @objc private func openSettings() {
+        SettingsWindowController.shared.show()
     }
 
     @objc private func toggleEnabled() {
@@ -75,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateIcon() {
+        statusItem.isVisible = Settings.showMenuBarIcon
         statusItem.button?.appearsDisabled = !Settings.enabled
     }
 }

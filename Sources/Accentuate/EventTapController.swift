@@ -10,6 +10,7 @@ final class EventTapController {
 
     private let debug = ProcessInfo.processInfo.environment["ACCENTUATE_DEBUG"] != nil
     private var engine: CorrectionEngine
+    private var frontmostBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     private var tap: CFMachPort?
     private let source = CGEventSource(stateID: .privateState)
 
@@ -23,7 +24,11 @@ final class EventTapController {
         self.engine = engine
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.engine.process(.reset) }
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self?.frontmostBundleID = app?.bundleIdentifier
+            self?.engine.process(.reset)
+        }
     }
 
     // MARK: Installation
@@ -86,7 +91,8 @@ final class EventTapController {
             releaseHeldEvents()
         }
 
-        guard Settings.enabled, !IsSecureEventInputEnabled() else {
+        guard Settings.enabled, !IsSecureEventInputEnabled(),
+              !(frontmostBundleID.map(Settings.excludedApps.contains) ?? false) else {
             engine.process(.reset)
             return passThrough
         }

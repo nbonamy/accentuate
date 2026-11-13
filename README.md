@@ -8,12 +8,14 @@ Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into 
 
 1. Download the latest zip from [Releases](https://github.com/nbonamy/accentuate/releases), drag Accentuate to `/Applications` and open it. (Or run `Scripts/bundle.sh --install` to build it yourself.)
 2. Allow Accentuate under **System Settings → Privacy & Security → Accessibility**. The menu bar item shows the status and links straight to that pane.
-3. Type. Accents are added as soon as you hit space, punctuation, tab or return.
+3. Type. Accents are added as soon as you hit space, punctuation, tab or return. Accentuate rereads the whole sentence at every word and once more at the closing `.`, `?`, `!` or return, so early words and ambiguous ones get fixed once the rest of the sentence is known.
 
-Menu bar options:
+Open **Settings** from the menu bar icon to:
 
-- **Enabled** – pause and resume.
-- **Assume French** – always correct, without waiting for French to be detected.
+- pause and resume corrections, or assume French without waiting for detection,
+- start Accentuate at login,
+- hide the menu bar icon,
+- list apps where it should never correct.
 
 ## Good to know
 
