@@ -2,14 +2,23 @@ import Foundation
 
 public protocol AccentSuggesting {
     /// The accented form of `word`, or nil when it should be left as typed.
-    /// - Parameter sentence: the sentence typed so far, ending with `word`.
-    func replacement(for word: String, in sentence: String) -> String?
+    /// - Parameters:
+    ///   - before: the sentence up to `word`.
+    ///   - after: the rest of the sentence, empty while it is still being typed.
+    func replacement(for word: String, before: String, after: String) -> String?
+}
+
+extension AccentSuggesting {
+    /// While typing: `sentence` is the text so far, ending with `word`.
+    func replacement(for word: String, in sentence: String) -> String? {
+        replacement(for: word, before: String(sentence.dropLast(word.count)), after: "")
+    }
 }
 
 public protocol SpellChecking {
     func isMisspelled(_ word: String) -> Bool
-    /// Best-first guesses for `word`, the last word of `sentence`.
-    func guesses(for word: String, in sentence: String) -> [String]
+    /// Best-first guesses for `word`, in the context of `before` + word + `after`.
+    func guesses(for word: String, before: String, after: String) -> [String]
 }
 
 /// Decides which words get accents, using the spell checker's context-aware guesses
@@ -24,32 +33,32 @@ public final class AccentSuggester: AccentSuggesting {
         self.frequencies = frequencies
     }
 
-    public func replacement(for word: String, in sentence: String) -> String? {
+    public func replacement(for word: String, before: String, after: String) -> String? {
         let lowered = word.lowercased()
         // Only plain ASCII letters: anything else is already accented or not a word.
         guard lowered.count > 1 || lowered == "a", lowered.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
         // A capital in the middle of a sentence is a name (all caps is shouting, fine).
-        if isCapitalized(word), sentence.dropLast(word.count).contains(where: \.isLetter) { return nil }
+        if isCapitalized(word), before.contains(where: \.isLetter) { return nil }
 
-        let key = Self.cacheKey(word, sentence)
+        let key = Self.cacheKey(word, before, after)
         if let cached = cache[key] { return cached }
-        let result = decide(word, lowered: lowered, sentence: sentence)
+        let result = decide(word, lowered: lowered, before: before, after: after)
         if cache.count > 2000 { cache.removeAll() }
         cache[key] = .some(result)
         return result
     }
 
-    private func decide(_ word: String, lowered: String, sentence: String) -> String? {
+    private func decide(_ word: String, lowered: String, before: String, after: String) -> String? {
         if AmbiguityRules.words.contains(lowered) {
-            return AmbiguityRules.replacement(for: word, in: sentence).map { Self.applyCase(of: word, to: $0) }
+            return AmbiguityRules.replacement(for: word, before: before, after: after).map { Self.applyCase(of: word, to: $0) }
         }
-        guard let guess = spellChecker.guesses(for: word, in: sentence)
+        guard let guess = spellChecker.guesses(for: word, before: before, after: after)
             .map({ $0.lowercased() })
             .first(where: { Self.fold($0) == lowered && $0 != lowered })
         else { return nil }
 
         guard spellChecker.isMisspelled(word) else {
-            return trustsAccentedForm(guess, over: lowered, sentence: sentence)
+            return trustsAccentedForm(guess, over: lowered, before: before)
                 ? Self.applyCase(of: word, to: guess) : nil
         }
         return Self.applyCase(of: word, to: guess)
@@ -58,12 +67,12 @@ public final class AccentSuggester: AccentSuggesting {
     /// The word is valid as typed, so the guess needs real evidence: either it is far more
     /// common than every other spelling, or the previous word says "participle/noun here"
     /// and the two are about equally common.
-    private func trustsAccentedForm(_ guess: String, over plain: String, sentence: String) -> Bool {
+    private func trustsAccentedForm(_ guess: String, over plain: String, before: String) -> Bool {
         let spellings = frequencies.spellings(forKey: plain)
         guard let guessFrequency = spellings[guess], let plainFrequency = spellings[plain] else { return false }
         let competitors = spellings.filter { $0.key != guess }.values.reduce(0, +)
         if guessFrequency >= 10 * competitors { return true }
-        guard let previous = Self.previousWord(of: plain, in: sentence), Self.contextTriggers.contains(previous) else { return false }
+        guard let previous = Self.lastWord(of: before), Self.contextTriggers.contains(previous) else { return false }
         return guessFrequency >= 0.5 * plainFrequency
     }
 
@@ -75,15 +84,14 @@ public final class AccentSuggester: AccentSuggesting {
         "un", "une", "ce", "cet", "cette", "ces", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses", "des", "par",
     ]
 
-    private static func previousWord(of word: String, in sentence: String) -> String? {
-        let words = sentence.lowercased().split(whereSeparator: { !$0.isLetter })
-        guard words.count >= 2 else { return nil }
-        return String(words[words.count - 2])
+    private static func lastWord(of text: String) -> String? {
+        text.lowercased().split(whereSeparator: { !$0.isLetter }).last.map(String.init)
     }
 
-    private static func cacheKey(_ word: String, _ sentence: String) -> String {
-        let tail = sentence.split(separator: " ").suffix(4).joined(separator: " ")
-        return word + "|" + tail
+    private static func cacheKey(_ word: String, _ before: String, _ after: String) -> String {
+        let head = before.split(separator: " ").suffix(4).joined(separator: " ")
+        let tail = after.split(separator: " ").prefix(2).joined(separator: " ")
+        return head + "|" + word + "|" + tail
     }
 
     private func isCapitalized(_ word: String) -> Bool {

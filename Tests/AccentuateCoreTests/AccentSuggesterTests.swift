@@ -5,10 +5,12 @@ private final class FakeSpellChecker: SpellChecking {
     var misspelled: Set<String> = []
     var guessTable: [String: [String]] = [:]
     var guessCalls = 0
+    var lastAfter = ""
 
     func isMisspelled(_ word: String) -> Bool { misspelled.contains(word.lowercased()) }
-    func guesses(for word: String, in sentence: String) -> [String] {
+    func guesses(for word: String, before: String, after: String) -> [String] {
         guessCalls += 1
+        lastAfter = after
         return guessTable[word.lowercased()] ?? []
     }
 }
@@ -156,5 +158,32 @@ struct AccentSuggesterTests {
         _ = suggester.replacement(for: "ecole", in: "a l ecole")
         _ = suggester.replacement(for: "ecole", in: "a l ecole")
         #expect(checker.guessCalls == 1)
+    }
+
+    // The end-of-sentence pass also knows what follows the word.
+
+    @Test func passesWhatFollowsToTheSpellChecker() {
+        let (suggester, checker) = makeSuggester {
+            $0.misspelled = ["decide"]
+            $0.guessTable["decide"] = ["décidé"]
+        }
+        _ = suggester.replacement(for: "decide", before: "nous avons ", after: " de partir")
+        #expect(checker.lastAfter == " de partir")
+    }
+
+    @Test func ambiguousWordsUseWhatFollows() {
+        let (suggester, _) = makeSuggester { _ in }
+        #expect(suggester.replacement(for: "a", before: "nous allons partir ", after: " l ecole") == "à")
+        #expect(suggester.replacement(for: "a", before: "il ", after: " la grippe") == nil)
+    }
+
+    @Test func cacheDistinguishesWhatFollows() {
+        let (suggester, checker) = makeSuggester {
+            $0.misspelled = ["decide"]
+            $0.guessTable["decide"] = ["décidé"]
+        }
+        _ = suggester.replacement(for: "decide", before: "il ", after: "")
+        _ = suggester.replacement(for: "decide", before: "il ", after: " de partir")
+        #expect(checker.guessCalls == 2)
     }
 }

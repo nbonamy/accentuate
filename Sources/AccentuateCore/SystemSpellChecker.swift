@@ -16,9 +16,9 @@ public final class SystemSpellChecker: SpellChecking {
                               inSpellDocumentWithTag: tag, wordCount: nil).location != NSNotFound
     }
 
-    public func guesses(for word: String, in sentence: String) -> [String] {
-        let length = (word as NSString).length
-        let range = NSRange(location: (sentence as NSString).length - length, length: length)
-        return checker.guesses(forWordRange: range, in: sentence, language: language, inSpellDocumentWithTag: tag) ?? []
+    public func guesses(for word: String, before: String, after: String) -> [String] {
+        let range = NSRange(location: (before as NSString).length, length: (word as NSString).length)
+        return checker.guesses(forWordRange: range, in: before + word + after, language: language,
+                               inSpellDocumentWithTag: tag) ?? []
     }
 }

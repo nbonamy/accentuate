@@ -6,11 +6,18 @@ private struct FixedDetector: LanguageDetecting {
     func isFrench(_ text: String) -> Bool { french }
 }
 
+private final class ToggleDetector: LanguageDetecting {
+    var french = false
+    func isFrench(_ text: String) -> Bool { french }
+}
+
 private final class FakeSuggester: AccentSuggesting {
     let table = ["ete": "été", "ecole": "école", "deja": "déjà"]
     var sentences: [String] = []
-    func replacement(for word: String, in sentence: String) -> String? {
-        sentences.append(sentence)
+    var afters: [String: String] = [:]
+    func replacement(for word: String, before: String, after: String) -> String? {
+        sentences.append(before + word)
+        afters[word] = after
         return table[word.lowercased()]
     }
 }
@@ -61,10 +68,10 @@ struct CorrectionEngineTests {
 
     @Test func needsEnoughContext() {
         var engine = makeEngine(minWords: 3)
-        #expect(type("ecole ", into: &engine).isEmpty)
-        #expect(type("je suis ", into: &engine).isEmpty)
-        _ = type("ecole", into: &engine)
-        #expect(engine.process(.character(" ")) != nil)
+        #expect(type("ecole je ", into: &engine).isEmpty)
+        _ = type("suis", into: &engine)
+        // Enough context at last: the words typed so far are fixed too.
+        #expect(engine.process(.character(" ")) == .replace(original: "ecole je suis", replacement: "école je suis"))
     }
 
     @Test func backspaceEditsCurrentWord() {
@@ -135,5 +142,83 @@ struct CorrectionEngineTests {
         _ = engine.process(.backspace)
         _ = type("e ", into: &engine)
         #expect(suggester.sentences.last == "ecole")
+    }
+
+    // End of sentence: one more look at everything the live pass could not judge.
+
+    @Test func finalDotFixesWordsSkippedForLackOfContext() {
+        var engine = makeEngine(minWords: 3)
+        #expect(type("ecole deja ete", into: &engine).isEmpty)
+        #expect(engine.process(.character(".")) == .replace(original: "ecole deja ete", replacement: "école déjà été"))
+    }
+
+    @Test func finalPassOnlyRewritesFromTheFirstChangedWord() {
+        var engine = makeEngine(minWords: 3)
+        _ = type("il fait deja beau et ecole", into: &engine)
+        // "deja" was already judged live, so only the last word changes.
+        #expect(engine.process(.character("!")) == .replace(original: "ecole", replacement: "école"))
+    }
+
+    @Test func sentenceIsJudgedAgainAsItGrows() {
+        let suggester = FakeSuggester()
+        var engine = makeEngine(minWords: 1, suggester: suggester)
+        _ = type("nous partons a l", into: &engine)
+        _ = engine.process(.character(" "))
+        #expect(suggester.afters["a"] == " l")
+    }
+
+    @Test func finalPassStaysQuietWhenNotFrench() {
+        var engine = makeEngine(french: false, minWords: 1)
+        _ = type("ecole deja ete", into: &engine)
+        #expect(engine.process(.character(".")) == nil)
+    }
+
+    @Test func finalPassRechecksAmbiguousWordsWithWhatFollows() {
+        let suggester = FakeSuggester()
+        var engine = makeEngine(minWords: 1, suggester: suggester)
+        _ = type("nous partons a l ecole", into: &engine)
+        _ = engine.process(.character("."))
+        #expect(suggester.afters["a"] == " l ecole")
+    }
+
+    @Test func returnEndsTheSentenceToo() {
+        var engine = makeEngine(minWords: 3)
+        _ = type("ecole deja ete", into: &engine)
+        #expect(engine.process(.character("\n")) == .replace(original: "ecole deja ete", replacement: "école déjà été"))
+    }
+
+    @Test func backspaceAfterFinalPassRestoresTheSentenceAndLeavesItAlone() {
+        var engine = makeEngine(minWords: 3)
+        _ = type("ecole deja ete.", into: &engine)
+        #expect(engine.process(.backspace) == .revert(original: "ecole deja ete", replacement: "école déjà été"))
+        _ = type(".", into: &engine)
+        #expect(engine.process(.character(" ")) == nil)
+    }
+
+    @Test func aNewSentenceStartsAfterTheFinalDot() {
+        let suggester = FakeSuggester()
+        var engine = makeEngine(minWords: 3, suggester: suggester)
+        _ = type("il fait beau. ", into: &engine)
+        suggester.sentences.removeAll()
+        _ = type("ecole ", into: &engine)
+        #expect(suggester.sentences == ["ecole"])
+    }
+
+    @Test func undoneWordsStayAsTypedForTheRestOfTheSentence() {
+        var engine = makeEngine()
+        _ = type("ecole ", into: &engine)
+        _ = engine.process(.backspace)
+        _ = type(" ete ", into: &engine)
+        #expect(engine.process(.backspace) == .revert(original: "ete", replacement: "été"))
+    }
+
+    @Test func theEndOfTheSentenceJudgesEveryWordNotJustTheLatest() {
+        let detector = ToggleDetector()
+        var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector, minimumContextWords: 1)
+        let filler = String(repeating: "un deux trois quatre ", count: 4) // 16 words, far more than the live window
+        _ = type("ecole " + filler, into: &engine)
+        detector.french = true
+        let action = engine.process(.character("."))
+        #expect(action == .replace(original: "ecole " + filler, replacement: "école " + filler))
     }
 }

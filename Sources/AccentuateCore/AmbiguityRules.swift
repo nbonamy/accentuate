@@ -4,22 +4,39 @@
 enum AmbiguityRules {
     static let words: Set<String> = ["a", "ou", "la", "sur"]
 
-    /// - Parameter sentence: the sentence typed so far, ending with `word`.
-    static func replacement(for word: String, in sentence: String) -> String? {
-        let context = Context(word: word, sentence: sentence)
-        guard let previous = context.previousWord else { return nil }
+    /// - Parameters:
+    ///   - before: the sentence up to `word`.
+    ///   - after: the rest of the sentence, when it is known (end-of-sentence pass).
+    static func replacement(for word: String, before: String, after: String = "") -> String? {
+        let previous = Neighbour(before: before)
+        let next = Neighbour(after: after)
         switch word.lowercased() {
         case "a":
-            return prepositionTriggers.contains(previous) ? "à" : nil
+            if let previous = previous.word, prepositionTriggers.contains(previous) { return "à" }
+            if let following = next.word, !subjects.contains(previous.word ?? "") {
+                if prepositionFollowers.contains(following) { return "à" }
+                if determiners.contains(following), let previous = previous.word, isInfinitive(previous) { return "à" }
+            }
+            return nil
         case "ou":
-            return whereTriggers.contains(previous) ? "où" : nil
+            if let previous = previous.word, whereTriggers.contains(previous) { return "où" }
+            if let following = next.word, whereFollowers.contains(following),
+               !(following == "est" && next.remainder.hasPrefix("-ce")) { return "où" }
+            return nil
         case "sur":
-            return previous == "bien" ? "sûr" : nil
+            return previous.word == "bien" ? "sûr" : nil
         case "la":
-            return context.separators == "-" && thereTriggers.contains(previous) ? "là" : nil
+            if let previous = previous.word, before.hasSuffix("-"), thereTriggers.contains(previous) { return "là" }
+            if let following = next.word, thereFollowers.contains(following) { return "là" }
+            return nil
         default:
             return nil
         }
+    }
+
+    /// Convenience: `sentence` is the text so far, ending with `word`.
+    static func replacement(for word: String, in sentence: String) -> String? {
+        replacement(for: word, before: String(sentence.dropLast(word.count)))
     }
 
     // "à": after verbs of going, or fixed expressions, `a` cannot be the verb "avoir".
@@ -36,25 +53,56 @@ enum AmbiguityRules {
         "celui", "celle", "ceux", "celles", "jour", "soir", "matin", "moment", "epoque", "annee", "semaine",
     ]
 
-    private struct Context {
-        let previousWord: String?
-        /// What sits between the previous word and ours (space, apostrophe, hyphen...).
-        let separators: String
+    // "à" before a place, a time or a fixed expression; never after a subject ("il a demain...").
+    private static let prepositionFollowers: Set<String> = [
+        "bientot", "demain", "cause", "propos", "partir", "present", "condition", "travers", "cote",
+    ]
+    private static let subjects: Set<String> = [
+        "il", "elle", "on", "qui", "y", "n", "l", "m", "t", "s", "c", "ce", "ca", "cela", "tout", "rien",
+        "personne", "chacun", "je", "j", "tu", "nous", "vous", "ils", "elles",
+    ]
+    private static let determiners: Set<String> = [
+        "la", "le", "l", "les", "un", "une", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses",
+        "notre", "votre", "leur", "cette", "ce", "cet", "ces",
+    ]
+    private static let whereFollowers: Set<String> = [
+        "est", "sont", "es", "etes", "vas", "va", "allez", "vont", "allons", "habites", "habitez", "habitent",
+    ]
+    private static let thereFollowers: Set<String> = ["bas", "haut", "dedans", "dessus"]
 
-        init(word: String, sentence: String) {
-            var before = Substring(sentence.dropLast(word.count))
-            var separators = ""
-            while let last = before.last, !last.isLetter {
-                separators.insert(last, at: separators.startIndex)
-                before.removeLast()
-            }
+    /// An infinitive is a safe sign that the next "a" is a preposition: "partir à l'école".
+    private static func isInfinitive(_ word: String) -> Bool {
+        word.count >= 5 && (word.hasSuffix("er") || word.hasSuffix("ir")) && !word.hasSuffix("ier")
+    }
+
+    /// The word next to ours, and what lies between.
+    private struct Neighbour {
+        var word: String?
+        var remainder = ""
+
+        /// The last word of `before`.
+        init(before: String) {
+            var rest = Substring(before)
+            while let last = rest.last, !last.isLetter { rest.removeLast() }
             var letters = ""
-            while let last = before.last, last.isLetter {
+            while let last = rest.last, last.isLetter {
                 letters.insert(last, at: letters.startIndex)
-                before.removeLast()
+                rest.removeLast()
             }
-            self.previousWord = letters.isEmpty ? nil : letters.lowercased()
-            self.separators = separators
+            word = letters.isEmpty ? nil : letters.lowercased()
+        }
+
+        /// The first word of `after`; `remainder` is whatever follows it.
+        init(after: String) {
+            var rest = Substring(after)
+            while let first = rest.first, !first.isLetter { rest.removeFirst() }
+            var letters = ""
+            while let first = rest.first, first.isLetter {
+                letters.append(first)
+                rest.removeFirst()
+            }
+            word = letters.isEmpty ? nil : letters.lowercased()
+            remainder = rest.lowercased()
         }
     }
 }

@@ -6,12 +6,14 @@ import Testing
 /// machine's French dictionary) and the real language detector.
 @MainActor
 struct AcceptanceTests {
-    private func restoreAccents(_ text: String) throws -> String {
+    private func restoreAccents(_ text: String, warmUp: Bool = true) throws -> String {
         let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: try WordFrequencies.bundled())
         var engine = CorrectionEngine(suggester: suggester, detector: NLLanguageDetector())
         var output = ""
         // Real typing carries context over from earlier sentences.
-        for character in "Salut tout le monde, comment allez vous aujourd'hui ? " { _ = engine.process(.character(character)) }
+        if warmUp {
+            for character in "Salut tout le monde, comment allez vous aujourd'hui ? " { _ = engine.process(.character(character)) }
+        }
         for character in text {
             if case .replace(let original, let replacement)? = engine.process(.character(character)) {
                 output.removeLast(original.count)
@@ -85,6 +87,18 @@ struct AcceptanceTests {
     }
 
     /// The event tap waits for each decision, so it has to stay quick.
+    @Test(arguments: [
+        ("Elle est tres contente.", "Elle est très contente."),
+        ("Je suis alle a l ecole.", "Je suis allé à l école."),
+        ("Nous allons partir a la plage demain.", "Nous allons partir à la plage demain."),
+        ("A bientot, je te rappelle demain.", "À bientôt, je te rappelle demain."),
+        ("Ou est le chat ?", "Où est le chat ?"),
+    ])
+    func finalPassFixesWhatLiveCorrectionsMissed(_ typed: String, _ expected: String) throws {
+        // Fresh engine, no warm-up: the first words are only judged at the final dot.
+        #expect(try restoreAccents(typed, warmUp: false) == expected)
+    }
+
     @Test func decisionsAreFast() throws {
         let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: try WordFrequencies.bundled())
         let sentence = "nous avons decide que nous allions mettre en vente notre bien"
@@ -97,5 +111,23 @@ struct AcceptanceTests {
             worst = max(worst, Date().timeIntervalSince(start))
         }
         #expect(worst < 0.15, "slowest decision took \(Int(worst * 1000)) ms")
+    }
+
+    /// Judging the whole sentence at every word must not make typing feel stuck.
+    @Test func everyKeystrokeIsQuick() throws {
+        let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: try WordFrequencies.bundled())
+        var engine = CorrectionEngine(suggester: suggester, detector: NLLanguageDetector())
+        let text = "Pour information, nous avons decide que nous allions mettre en vente notre bien depuis longtemps. Nous respecterons bien evidemment les contraintes legales par rapport a votre bail et nous vous enverrons une notification par recommande avec AR fin decembre, debut janvier. "
+        var worst = 0.0
+        var total = 0.0
+        for character in text {
+            let start = Date()
+            _ = engine.process(.character(character))
+            let elapsed = Date().timeIntervalSince(start)
+            worst = max(worst, elapsed)
+            total += elapsed
+        }
+        print("worst keystroke: \(Int(worst * 1000)) ms, total: \(Int(total * 1000)) ms")
+        #expect(worst < 0.25, "slowest keystroke took \(Int(worst * 1000)) ms")
     }
 }
