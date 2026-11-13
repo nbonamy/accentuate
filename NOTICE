@@ -1,0 +1,11 @@
+Accentuate bundles word frequencies (Sources/AccentuateCore/Resources/accents.tsv)
+derived from the following source.
+
+FrequencyWords, French 50k list (fr_50k.txt)
+  Author:   Hermit Dave, https://github.com/hermitdave/FrequencyWords
+  License:  CC BY-SA 4.0 for the content (MIT for the code),
+            https://creativecommons.org/licenses/by-sa/4.0/
+  accents.tsv is derived from this list and is shared under the same terms.
+
+Accent suggestions come from the French spell checker built into macOS at run time;
+no dictionary from it is bundled.
