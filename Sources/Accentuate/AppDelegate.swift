@@ -8,13 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        do {
-            let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: try WordFrequencies.bundled())
-            let engine = CorrectionEngine(suggester: suggester, detector: NLLanguageDetector())
-            tapController = EventTapController(engine: engine)
-        } catch {
-            NSLog("Accentuate: cannot load dictionary: \(error)")
-        }
+        let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: (try? WordFrequencies.bundled()) ?? WordFrequencies(tsv: ""))
+        tapController = EventTapController(engine: CorrectionEngine(suggester: suggester, detector: NLLanguageDetector()))
 
         statusItem.button?.image = MenuBarIcon.make()
         statusItem.menu = {
@@ -56,9 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         enabled.state = Settings.enabled ? .on : .off
         menu.addItem(enabled)
 
-        let french = NSMenuItem(title: "Assume French", action: #selector(toggleAssumeFrench), keyEquivalent: "")
-        french.state = Settings.assumeFrench ? .on : .off
-        menu.addItem(french)
+        let languageItem = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        languageItem.submenu = languageMenu()
+        menu.addItem(languageItem)
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
@@ -81,8 +76,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateIcon()
     }
 
-    @objc private func toggleAssumeFrench() {
-        Settings.assumeFrench.toggle()
+    private func languageMenu() -> NSMenu {
+        let menu = NSMenu()
+        let choices = [("auto", "Auto-detect")] + Language.available.map { ($0.id, $0.name) }
+        for (id, name) in choices {
+            let item = NSMenuItem(title: name, action: #selector(chooseLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = id
+            item.state = Settings.language == id ? .on : .off
+            menu.addItem(item)
+            if id == "auto" { menu.addItem(.separator()) }
+        }
+        return menu
+    }
+
+    @objc private func chooseLanguage(_ item: NSMenuItem) {
+        Settings.language = item.representedObject as? String ?? "auto"
     }
 
     @objc private func openAccessibilitySettings() {

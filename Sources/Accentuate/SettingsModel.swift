@@ -1,3 +1,4 @@
+import AccentuateCore
 import AppKit
 import ServiceManagement
 
@@ -29,15 +30,16 @@ final class SettingsModel: ObservableObject {
     }
     @Published var showMenuBarIcon: Bool { didSet { Settings.showMenuBarIcon = showMenuBarIcon } }
     @Published var enabled: Bool { didSet { Settings.enabled = enabled } }
-    @Published var assumeFrench: Bool { didSet { Settings.assumeFrench = assumeFrench } }
+    @Published var language: String { didSet { Settings.language = language } }
     @Published var excludedApps: [ExcludedApp] { didSet { Settings.excludedApps = excludedApps.map(\.id) } }
+    let languages = Language.available
     @Published var accessibilityGranted = AXIsProcessTrusted()
 
     init() {
         launchAtLogin = SMAppService.mainApp.status == .enabled
         showMenuBarIcon = Settings.showMenuBarIcon
         enabled = Settings.enabled
-        assumeFrench = Settings.assumeFrench
+        language = Settings.language
         excludedApps = Settings.excludedApps.map(ExcludedApp.init)
     }
 

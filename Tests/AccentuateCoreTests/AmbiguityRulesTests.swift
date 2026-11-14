@@ -43,8 +43,9 @@ struct AmbiguityRulesTests {
         #expect(AmbiguityRules.replacement(for: word, in: sentence) == nil)
     }
 
-    @Test func knowsWhichWordsItOwns() {
-        #expect(AmbiguityRules.words == ["a", "ou", "la", "sur"])
+    @Test func onlyOwnsFrenchWords() throws {
+        #expect(AmbiguityRules.words(for: .french) == ["a", "ou", "la", "sur"])
+        #expect(AmbiguityRules.words(for: try #require(Language.withID("es"))).isEmpty)
     }
 
     // What follows the word (only known once the sentence is complete).
@@ -59,6 +60,11 @@ struct AmbiguityRulesTests {
         ("dis moi ", "ou", " vas tu", "où"),
         ("", "la", "-bas", "là"),
         ("il habite ", "la", " haut", "là"),
+        ("sinon c'est ", "a", " 31:26", "à"),
+        ("sinon c’est ", "a", " 31", "à"),
+        ("la reunion est ", "a", " 10 heures", "à"),
+        ("ca commence ", "a", " 10h30", "à"),
+        ("on se voit ", "a", " 18:45", "à"),
     ])
     func usesWhatFollows(_ before: String, _ word: String, _ after: String, _ expected: String) {
         #expect(AmbiguityRules.replacement(for: word, before: before, after: after) == expected)
@@ -73,6 +79,10 @@ struct AmbiguityRulesTests {
         ("tu veux du the ", "ou", " est-ce que tu preferes de l eau"),
         ("je ", "la", " mange"),
         ("dans ", "la", " bassine"),
+        ("paul ", "a", " 31 ans"),
+        ("il ", "a", " 10h de route"),
+        ("elle ", "a", " 3 enfants"),
+        ("il y ", "a", " 12 minutes"),
     ])
     func staysQuietEvenWithWhatFollows(_ before: String, _ word: String, _ after: String) {
         #expect(AmbiguityRules.replacement(for: word, before: before, after: after) == nil)

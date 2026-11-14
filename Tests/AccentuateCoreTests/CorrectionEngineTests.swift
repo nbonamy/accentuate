@@ -2,20 +2,22 @@ import Testing
 @testable import AccentuateCore
 
 private struct FixedDetector: LanguageDetecting {
-    var french: Bool
-    func isFrench(_ text: String) -> Bool { french }
+    var language: Language?
+    func detect(_ text: String) -> Language? { language }
 }
 
 private final class ToggleDetector: LanguageDetecting {
-    var french = false
-    func isFrench(_ text: String) -> Bool { french }
+    var language: Language?
+    func detect(_ text: String) -> Language? { language }
 }
 
 private final class FakeSuggester: AccentSuggesting {
     let table = ["ete": "été", "ecole": "école", "deja": "déjà"]
     var sentences: [String] = []
     var afters: [String: String] = [:]
-    func replacement(for word: String, before: String, after: String) -> String? {
+    var languages: [Language] = []
+    func replacement(for word: String, before: String, after: String, language: Language) -> String? {
+        languages.append(language)
         sentences.append(before + word)
         afters[word] = after
         return table[word.lowercased()]
@@ -23,7 +25,7 @@ private final class FakeSuggester: AccentSuggesting {
 }
 
 private func makeEngine(french: Bool = true, minWords: Int = 1, suggester: FakeSuggester = FakeSuggester()) -> CorrectionEngine {
-    CorrectionEngine(suggester: suggester, detector: FixedDetector(french: french), minimumContextWords: minWords)
+    CorrectionEngine(suggester: suggester, detector: FixedDetector(language: french ? .french : nil), minimumContextWords: minWords)
 }
 
 private func type(_ text: String, into engine: inout CorrectionEngine) -> [EngineAction] {
@@ -108,9 +110,9 @@ struct CorrectionEngineTests {
         #expect(engine.process(.backspace) == nil)
     }
 
-    @Test func assumeFrenchSkipsDetection() {
+    @Test func aFixedLanguageSkipsDetection() {
         var engine = makeEngine(french: false)
-        engine.assumeFrench = true
+        engine.selection = .fixed(.french)
         _ = type("ecole", into: &engine)
         #expect(engine.process(.character(" ")) != nil)
     }
@@ -217,8 +219,25 @@ struct CorrectionEngineTests {
         var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector, minimumContextWords: 1)
         let filler = String(repeating: "un deux trois quatre ", count: 4) // 16 words, far more than the live window
         _ = type("ecole " + filler, into: &engine)
-        detector.french = true
+        detector.language = .french
         let action = engine.process(.character("."))
         #expect(action == .replace(original: "ecole " + filler, replacement: "école " + filler))
+    }
+
+    @Test func usesTheDetectedLanguage() throws {
+        let spanish = try #require(Language.withID("es"))
+        let suggester = FakeSuggester()
+        var engine = CorrectionEngine(suggester: suggester, detector: FixedDetector(language: spanish), minimumContextWords: 1)
+        _ = type("ecole ", into: &engine)
+        #expect(suggester.languages == [spanish])
+    }
+
+    @Test func aFixedLanguageOverridesDetection() throws {
+        let german = try #require(Language.withID("de"))
+        let suggester = FakeSuggester()
+        var engine = CorrectionEngine(suggester: suggester, detector: FixedDetector(language: .french), minimumContextWords: 1)
+        engine.selection = .fixed(german)
+        _ = type("ecole ", into: &engine)
+        #expect(suggester.languages == [german])
     }
 }

@@ -1,8 +1,10 @@
-/// Words that are valid with and without accent. The spell checker cannot tell them apart,
-/// so we only accent them when the words before them make the accented reading obvious.
+/// French words that are valid with and without accent. The spell checker cannot tell them
+/// apart, so we only accent them when the words around them make the accented reading obvious.
 /// When in doubt we do nothing: a missing accent beats a wrong one.
 enum AmbiguityRules {
-    static let words: Set<String> = ["a", "ou", "la", "sur"]
+    static let frenchWords: Set<String> = ["a", "ou", "la", "sur"]
+
+    static func words(for language: Language) -> Set<String> { language == .french ? frenchWords : [] }
 
     /// - Parameters:
     ///   - before: the sentence up to `word`.
@@ -13,6 +15,10 @@ enum AmbiguityRules {
         switch word.lowercased() {
         case "a":
             if let previous = previous.word, prepositionTriggers.contains(previous) { return "à" }
+            if let number = next.number, !subjects.contains(previous.word ?? "") {
+                // "c'est à 31:26", "la réunion est à 10 heures", "on se voit à 18h30"; but "Paul a 31 ans".
+                if number.isTime || beingForms.contains(previous.word ?? "") { return "à" }
+            }
             if let following = next.word, !subjects.contains(previous.word ?? "") {
                 if prepositionFollowers.contains(following) { return "à" }
                 if determiners.contains(following), let previous = previous.word, isInfinitive(previous) { return "à" }
@@ -57,6 +63,9 @@ enum AmbiguityRules {
     private static let prepositionFollowers: Set<String> = [
         "bientot", "demain", "cause", "propos", "partir", "present", "condition", "travers", "cote",
     ]
+    private static let beingForms: Set<String> = [
+        "est", "sont", "sera", "seront", "etait", "etaient", "serait", "seraient", "soit",
+    ]
     private static let subjects: Set<String> = [
         "il", "elle", "on", "qui", "y", "n", "l", "m", "t", "s", "c", "ce", "ca", "cela", "tout", "rien",
         "personne", "chacun", "je", "j", "tu", "nous", "vous", "ils", "elles",
@@ -79,6 +88,19 @@ enum AmbiguityRules {
     private struct Neighbour {
         var word: String?
         var remainder = ""
+        /// The next token when it starts with a digit.
+        var number: Number?
+
+        struct Number {
+            let token: String
+            /// 10h, 10h30, 18:45
+            var isTime: Bool {
+                let digits = token.prefix { $0.isNumber }
+                guard (1...2).contains(digits.count) else { return false }
+                let rest = token.dropFirst(digits.count)
+                return rest.hasPrefix(":") && rest.dropFirst().first?.isNumber == true || rest.lowercased().hasPrefix("h")
+            }
+        }
 
         /// The last word of `before`.
         init(before: String) {
@@ -103,6 +125,8 @@ enum AmbiguityRules {
             }
             word = letters.isEmpty ? nil : letters.lowercased()
             remainder = rest.lowercased()
+            let token = after.drop { $0.isWhitespace }.prefix { !$0.isWhitespace }
+            if token.first?.isNumber == true { number = Number(token: String(token)) }
         }
     }
 }

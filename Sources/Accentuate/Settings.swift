@@ -1,3 +1,4 @@
+import AccentuateCore
 import Foundation
 
 extension Notification.Name {
@@ -18,9 +19,14 @@ enum Settings {
         set { set(newValue, forKey: "enabled") }
     }
 
-    static var assumeFrench: Bool {
-        get { defaults.bool(forKey: "assumeFrench") }
-        set { set(newValue, forKey: "assumeFrench") }
+    /// "auto", or the id of the language to always assume. (Used to be a French-only toggle.)
+    static var language: String {
+        get { defaults.string(forKey: "language") ?? (defaults.bool(forKey: "assumeFrench") ? "fr" : "auto") }
+        set { set(newValue, forKey: "language") }
+    }
+
+    static var languageSelection: LanguageSelection {
+        Language.withID(language).map { .fixed($0) } ?? .auto
     }
 
     static var showMenuBarIcon: Bool {

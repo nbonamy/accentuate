@@ -1,3 +1,4 @@
+import AccentuateCore
 import SwiftUI
 
 // MARK: Glass
@@ -61,7 +62,7 @@ struct SettingsView: View {
                 Card {
                     ToggleRow(title: "Correct accents as I type", isOn: $model.enabled)
                     Divider()
-                    ToggleRow(title: "Assume I'm writing French", isOn: $model.assumeFrench)
+                    languageRow
                 }
                 Card {
                     ToggleRow(title: "Start at login", isOn: $model.launchAtLogin)
@@ -78,6 +79,21 @@ struct SettingsView: View {
         .scrollIndicators(.hidden)
         .frame(width: 440, height: 600)
         .onReceive(timer) { _ in model.refresh() }
+    }
+
+    private var languageRow: some View {
+        HStack {
+            Text("Language")
+            Spacer()
+            Picker("Language", selection: $model.language) {
+                Text("Auto-detect").tag("auto")
+                Divider()
+                ForEach(model.languages) { Text($0.name).tag($0.id) }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+        .frame(height: 44)
     }
 
     private var header: some View {

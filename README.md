@@ -1,8 +1,8 @@
 # Accentuate
 
-Type French on a US keyboard, skip the accents, and let them appear on their own.
+Type French, Spanish, Italian, Portuguese or German on a US keyboard, skip the accents, and let them appear on their own.
 
-Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into `école`, `tres` into `très` and `deja` into `déjà`, in any app. It only steps in when you are writing French, and it works entirely offline.
+Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into `école`, `tres` into `très` and `manana` into `mañana`, in any app. It works out the language as you type, or you can pick one, and it works entirely offline. French gets the most care, since it has the most ambiguous words.
 
 ## Using it
 
@@ -12,7 +12,7 @@ Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into 
 
 Open **Settings** from the menu bar icon to:
 
-- pause and resume corrections, or assume French without waiting for detection,
+- pause and resume corrections, or choose the language instead of letting Accentuate detect it,
 - start Accentuate at login,
 - hide the menu bar icon,
 - list apps where it should never correct.
@@ -34,6 +34,6 @@ Scripts/bundle.sh     # build a signed Accentuate.app in ./build (add --install 
 Scripts/release.sh 1.0.0   # sign, notarize and publish a GitHub release
 ```
 
-Accents come from the French spell checker built into macOS, so no network or extra download is needed. `Tools/build_dictionary.py` regenerates the word-frequency table from `Tools/dict-src/fr_50k.txt`.
+Accents come from the spell checker built into macOS, so no network or extra download is needed. `Tools/build_dictionary.py` regenerates the French word-frequency table from `Tools/dict-src/fr_50k.txt`.
 
 Data sources and licenses are listed in [NOTICE](NOTICE).

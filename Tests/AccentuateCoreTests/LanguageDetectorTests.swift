@@ -11,7 +11,7 @@ struct LanguageDetectorTests {
         "est-ce que tu as vu le film hier soir",
     ])
     func detectsAccentlessFrench(_ text: String) {
-        #expect(detector.isFrench(text))
+        #expect(detector.detect(text) == .french)
     }
 
     @Test(arguments: [
@@ -21,6 +21,16 @@ struct LanguageDetectorTests {
         "let's grab lunch tomorrow if you are free",
     ])
     func rejectsEnglish(_ text: String) {
-        #expect(!detector.isFrench(text))
+        #expect(detector.detect(text) == nil)
+    }
+
+    @Test(arguments: [
+        ("es", "voy a la escuela manana por la manana con mis amigos"),
+        ("pt", "eu vou para a escola amanha de manha com os meus amigos"),
+        ("it", "domani mattina andiamo a scuola con i nostri amici"),
+        ("de", "morgen fruh gehen wir mit unseren freunden zur schule"),
+    ])
+    func detectsOtherLanguages(_ id: String, _ text: String) throws {
+        #expect(detector.detect(text)?.id == id)
     }
 }

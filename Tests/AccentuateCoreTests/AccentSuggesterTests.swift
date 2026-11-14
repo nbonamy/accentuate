@@ -7,10 +7,13 @@ private final class FakeSpellChecker: SpellChecking {
     var guessCalls = 0
     var lastAfter = ""
 
-    func isMisspelled(_ word: String) -> Bool { misspelled.contains(word.lowercased()) }
-    func guesses(for word: String, before: String, after: String) -> [String] {
+    var languages: [Language] = []
+
+    func isMisspelled(_ word: String, language: Language) -> Bool { misspelled.contains(word.lowercased()) }
+    func guesses(for word: String, before: String, after: String, language: Language) -> [String] {
         guessCalls += 1
         lastAfter = after
+        languages.append(language)
         return guessTable[word.lowercased()] ?? []
     }
 }
@@ -167,14 +170,14 @@ struct AccentSuggesterTests {
             $0.misspelled = ["decide"]
             $0.guessTable["decide"] = ["décidé"]
         }
-        _ = suggester.replacement(for: "decide", before: "nous avons ", after: " de partir")
+        _ = suggester.replacement(for: "decide", before: "nous avons ", after: " de partir", language: .french)
         #expect(checker.lastAfter == " de partir")
     }
 
     @Test func ambiguousWordsUseWhatFollows() {
         let (suggester, _) = makeSuggester { _ in }
-        #expect(suggester.replacement(for: "a", before: "nous allons partir ", after: " l ecole") == "à")
-        #expect(suggester.replacement(for: "a", before: "il ", after: " la grippe") == nil)
+        #expect(suggester.replacement(for: "a", before: "nous allons partir ", after: " l ecole", language: .french) == "à")
+        #expect(suggester.replacement(for: "a", before: "il ", after: " la grippe", language: .french) == nil)
     }
 
     @Test func cacheDistinguishesWhatFollows() {
@@ -182,8 +185,37 @@ struct AccentSuggesterTests {
             $0.misspelled = ["decide"]
             $0.guessTable["decide"] = ["décidé"]
         }
-        _ = suggester.replacement(for: "decide", before: "il ", after: "")
-        _ = suggester.replacement(for: "decide", before: "il ", after: " de partir")
+        _ = suggester.replacement(for: "decide", before: "il ", after: "", language: .french)
+        _ = suggester.replacement(for: "decide", before: "il ", after: " de partir", language: .french)
         #expect(checker.guessCalls == 2)
+    }
+
+    // Languages
+
+    @Test func asksTheSpellCheckerInTheSentencesLanguage() throws {
+        let spanish = try #require(Language.withID("es"))
+        let (suggester, checker) = makeSuggester {
+            $0.misspelled = ["manana"]
+            $0.guessTable["manana"] = ["mañana"]
+        }
+        #expect(suggester.replacement(for: "manana", in: "hasta manana", language: spanish) == "mañana")
+        #expect(checker.languages == [spanish])
+    }
+
+    @Test func frenchRulesDoNotApplyToOtherLanguages() throws {
+        let italian = try #require(Language.withID("it"))
+        let (suggester, checker) = makeSuggester { $0.guessTable["a"] = ["à"] }
+        // "a" is an ordinary word in Italian: no French rule, and no trust in the checker's accent variant.
+        #expect(suggester.replacement(for: "a", in: "par rapport a", language: italian) == nil)
+        #expect(checker.guessCalls == 1)
+    }
+
+    @Test func foldsLettersThatAreNotJustAccents() throws {
+        let german = try #require(Language.withID("de"))
+        let (suggester, _) = makeSuggester {
+            $0.misspelled = ["strasse"]
+            $0.guessTable["strasse"] = ["straße"]
+        }
+        #expect(suggester.replacement(for: "strasse", in: "die strasse", language: german) == "straße")
     }
 }

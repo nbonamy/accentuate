@@ -1,23 +1,26 @@
 import NaturalLanguage
 
 public protocol LanguageDetecting {
-    func isFrench(_ text: String) -> Bool
+    /// The language `text` is written in, if it is one we correct and we are confident enough.
+    func detect(_ text: String) -> Language?
 }
 
-/// Detects French over a short window of recent text, constrained to a few languages
-/// so accent-less French is not mistaken for something exotic.
+/// Detects the language over a short window of recent text. English is a candidate too, so
+/// English text is recognized as such instead of being forced into the closest other language.
 public struct NLLanguageDetector: LanguageDetecting {
+    private let languages: [Language]
     private let threshold: Double
-    private static let candidates: [NLLanguage] = [.french, .english, .spanish, .german, .italian, .portuguese]
 
-    public init(threshold: Double = 0.6) {
+    public init(languages: [Language] = Language.available, threshold: Double = 0.6) {
+        self.languages = languages
         self.threshold = threshold
     }
 
-    public func isFrench(_ text: String) -> Bool {
+    public func detect(_ text: String) -> Language? {
         let recognizer = NLLanguageRecognizer()
-        recognizer.languageConstraints = Self.candidates
+        recognizer.languageConstraints = languages.map(\.naturalLanguage) + [.english]
         recognizer.processString(text)
-        return recognizer.languageHypotheses(withMaximum: 1)[.french, default: 0] >= threshold
+        guard let best = recognizer.languageHypotheses(withMaximum: 1).first, best.value >= threshold else { return nil }
+        return languages.first { $0.naturalLanguage == best.key }
     }
 }

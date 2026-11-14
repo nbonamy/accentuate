@@ -96,7 +96,7 @@ final class EventTapController {
             engine.process(.reset)
             return passThrough
         }
-        engine.assumeFrench = Settings.assumeFrench
+        engine.selection = Settings.languageSelection
 
         guard let input = keyInput(for: event) else {
             engine.process(.reset)

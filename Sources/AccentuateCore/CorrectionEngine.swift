@@ -18,7 +18,7 @@ public enum EngineAction: Equatable {
 /// seen in the context of its neighbours, and whatever changed is rewritten (usually just
 /// the last word). The final . ! ? or return gets the same treatment, then a new sentence starts.
 public struct CorrectionEngine {
-    public var assumeFrench = false
+    public var selection: LanguageSelection = .auto
 
     private let suggester: AccentSuggesting
     private let detector: LanguageDetecting
@@ -83,9 +83,9 @@ public struct CorrectionEngine {
     private mutating func finishWord(boundary: Character) -> EngineAction? {
         let endsSentence = ".!?\n".contains(boundary)
         var action: EngineAction?
-        if (!word.isEmpty || endsSentence), isFrenchContext() {
+        if (!word.isEmpty || endsSentence), let language = currentLanguage() {
             let typed = sentence
-            let corrected = judgedSentence(typed, everyWord: endsSentence)
+            let corrected = judgedSentence(typed, language: language, everyWord: endsSentence)
             if let edit = difference(from: typed, to: corrected), case .replace(let original, let replacement) = edit {
                 sentence = corrected
                 context.removeLast(min(context.count, original.count))
@@ -102,7 +102,7 @@ public struct CorrectionEngine {
 
     /// Every word, judged with the rest of the sentence around it. While typing only the
     /// latest words are looked at; at the end of the sentence, all of them.
-    private func judgedSentence(_ text: String, everyWord: Bool) -> String {
+    private func judgedSentence(_ text: String, language: Language, everyWord: Bool) -> String {
         var segments: [(text: String, isWord: Bool)] = []
         for character in text {
             if let last = segments.last, last.isWord == character.isLetter {
@@ -119,7 +119,7 @@ public struct CorrectionEngine {
             guard !rejectedWords.contains(word.lowercased()) else { continue }
             let before = segments[..<index].map(\.text).joined()
             let after = segments[(index + 1)...].map(\.text).joined()
-            if let replacement = suggester.replacement(for: word, before: before, after: after) {
+            if let replacement = suggester.replacement(for: word, before: before, after: after, language: language) {
                 segments[index].text = replacement
             }
         }
@@ -144,10 +144,10 @@ public struct CorrectionEngine {
         rejectedWords = []
     }
 
-    private func isFrenchContext() -> Bool {
-        if assumeFrench { return true }
+    private func currentLanguage() -> Language? {
+        if case .fixed(let language) = selection { return language }
         let words = context.split { !$0.isLetter && !$0.isNumber }
-        return words.count >= minimumContextWords && detector.isFrench(context)
+        return words.count >= minimumContextWords ? detector.detect(context) : nil
     }
 
     private mutating func remember(_ character: Character) {

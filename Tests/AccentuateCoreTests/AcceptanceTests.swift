@@ -6,9 +6,10 @@ import Testing
 /// machine's French dictionary) and the real language detector.
 @MainActor
 struct AcceptanceTests {
-    private func restoreAccents(_ text: String, warmUp: Bool = true) throws -> String {
+    private func restoreAccents(_ text: String, warmUp: Bool = true, selection: LanguageSelection = .auto) throws -> String {
         let suggester = AccentSuggester(spellChecker: SystemSpellChecker(), frequencies: try WordFrequencies.bundled())
         var engine = CorrectionEngine(suggester: suggester, detector: NLLanguageDetector())
+        engine.selection = selection
         var output = ""
         // Real typing carries context over from earlier sentences.
         if warmUp {
@@ -25,8 +26,11 @@ struct AcceptanceTests {
     }
 
     private func stripped(_ text: String) -> String {
-        text.folding(options: .diacriticInsensitive, locale: nil)
-            .replacingOccurrences(of: "œ", with: "oe")
+        var plain = text
+        for (letter, replacement) in ["œ": "oe", "æ": "ae", "ß": "ss", "ł": "l", "ø": "o", "đ": "d", "ı": "i"] {
+            plain = plain.replacingOccurrences(of: letter, with: replacement)
+        }
+        return plain.folding(options: .diacriticInsensitive, locale: nil)
     }
 
     @Test func restoresTheReportedParagraph() throws {
@@ -65,6 +69,9 @@ struct AcceptanceTests {
         "Merci à tous pour votre présence et votre soutien.",
         "J'ai réservé une table pour demain à huit heures.",
         "Cette année, l'été a été très chaud.",
+        "Regarde ce bout de vidéo. Normalement ça commence au bon moment sinon c'est à 31:26.",
+        "Regarde ce bout de vidéo. Normalement ça commence au bon moment sinon c’est à 31:26.",
+        "La réunion est à 10h30 dans la grande salle.",
     ])
     func restoresCommonFrench(_ sentence: String) throws {
         let result = try restoreAccents(stripped(sentence) + " ")
@@ -129,5 +136,36 @@ struct AcceptanceTests {
         }
         print("worst keystroke: \(Int(worst * 1000)) ms, total: \(Int(total * 1000)) ms")
         #expect(worst < 0.25, "slowest keystroke took \(Int(worst * 1000)) ms")
+    }
+
+    // Other languages: typed without accents under a fixed language.
+
+    @Test(arguments: [
+        ("es", "Mañana iremos a la estación para coger el tren."),
+        ("es", "Mi hermano habla español y también entiende francés."),
+        ("pt", "Eu gosto de dançar e de viajar também."),
+        ("pt", "A estação fica perto da nossa cidade."),
+        ("it", "Perché non vieni con noi in città?"),
+        ("it", "Ho bevuto un caffè con la mia amica dell'università."),
+        ("de", "Die Mädchen gehen für eine Woche in die Schweiz."),
+    ])
+    func restoresOtherLanguages(_ id: String, _ sentence: String) throws {
+        let language = try #require(Language.withID(id))
+        let result = try restoreAccents(stripped(sentence) + " ", selection: .fixed(language))
+        #expect(result.trimmingCharacters(in: .whitespaces) == sentence)
+    }
+
+    /// Same, but the language has to be worked out from the text itself.
+    @Test(arguments: [
+        "Mañana iremos a la estación para coger el tren con mi hermano.",
+        "Mi hermano habla español y también entiende francés muy bien.",
+        "Perché non vieni con noi in città domani mattina con i nostri amici?",
+        "Ho bevuto un caffè con la mia amica dell'università questa mattina.",
+        "Die Mädchen gehen für eine Woche mit ihren Freunden in die Schweiz.",
+        "Eu gosto de dançar e de viajar também com os meus amigos.",
+    ])
+    func detectsAndRestoresOtherLanguages(_ sentence: String) throws {
+        let result = try restoreAccents(stripped(sentence) + " ", warmUp: false)
+        #expect(result.trimmingCharacters(in: .whitespaces) == sentence)
     }
 }
