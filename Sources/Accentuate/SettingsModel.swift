@@ -31,6 +31,7 @@ final class SettingsModel: ObservableObject {
     @Published var showMenuBarIcon: Bool { didSet { Settings.showMenuBarIcon = showMenuBarIcon } }
     @Published var enabled: Bool { didSet { Settings.enabled = enabled } }
     @Published var language: String { didSet { Settings.language = language } }
+    @Published var sensitivity: Sensitivity { didSet { Settings.sensitivity = sensitivity } }
     @Published var excludedApps: [ExcludedApp] { didSet { Settings.excludedApps = excludedApps.map(\.id) } }
     let languages = Language.available
     @Published var accessibilityGranted = AXIsProcessTrusted()
@@ -40,6 +41,7 @@ final class SettingsModel: ObservableObject {
         showMenuBarIcon = Settings.showMenuBarIcon
         enabled = Settings.enabled
         language = Settings.language
+        sensitivity = Settings.sensitivity
         excludedApps = Settings.excludedApps.map(ExcludedApp.init)
     }
 

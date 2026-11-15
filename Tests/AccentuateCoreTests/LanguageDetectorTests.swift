@@ -33,4 +33,18 @@ struct LanguageDetectorTests {
     func detectsOtherLanguages(_ id: String, _ text: String) throws {
         #expect(detector.detect(text)?.id == id)
     }
+
+    @Test func aChosenLanguageIsOnlyWeighedAgainstEnglish() {
+        // Short accent-less French is often taken for Spanish; the user already said it is French.
+        #expect(detector.confidence(of: .french, in: "je suis alle a l ecole ce matin") >= 0.6)
+        #expect(detector.confidence(of: .french, in: "nous avons decide de partir") >= 0.6)
+        #expect(detector.confidence(of: .french, in: "we should schedule a meeting for next week") < 0.2)
+        #expect(detector.confidence(of: .french, in: "echo $pre && git status") < 0.6)
+    }
+
+    @Test(arguments: [(Sensitivity.cautious, 0.8, 4), (.balanced, 0.6, 3), (.eager, 0.45, 2)])
+    func sensitivityLevelsMapToConfidenceAndContext(_ level: Sensitivity, _ confidence: Double, _ words: Int) {
+        #expect(level.confidence == confidence)
+        #expect(Confidence.contextWords(for: level.confidence) == words)
+    }
 }

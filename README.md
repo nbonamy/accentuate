@@ -12,7 +12,8 @@ Accentuate lives in the menu bar. When you finish a word, it turns `ecole` into 
 
 Open **Settings** from the menu bar icon to:
 
-- pause and resume corrections, or choose the language instead of letting Accentuate detect it,
+- pause and resume corrections, and choose the language or let Accentuate detect it,
+- set how sure Accentuate must be that you are writing that language (cautious, balanced or eager) before it adds anything, so English text, commands and code are left alone,
 - start Accentuate at login,
 - hide the menu bar icon,
 - list apps where it should never correct.

@@ -39,6 +39,7 @@ public final class AccentSuggester: AccentSuggesting {
         let lowered = word.lowercased()
         // Only plain ASCII letters: anything else is already accented or not a word.
         guard lowered.count > 1 || lowered == "a", lowered.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+        if Self.looksLikeCode(before: before, after: after) { return nil }
         // A capital in the middle of a sentence is a name (all caps is shouting, fine).
         // Not in German, where every noun has one.
         if language.id != "de", isCapitalized(word), before.contains(where: \.isLetter) { return nil }
@@ -88,6 +89,21 @@ public final class AccentSuggester: AccentSuggesting {
         "suis", "es", "est", "sommes", "etes", "sont", "etait", "etais", "etaient", "serai", "sera", "seront",
         "un", "une", "ce", "cet", "cette", "ces", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses", "des", "par",
     ]
+
+    /// `$pre`, `@pre`, `pre_commit`, `file.pre`, `pre.sh`, `pre=1`, `/bin/pre`: not prose.
+    /// Hyphens and apostrophes are deliberately not here: they are part of French.
+    private static func looksLikeCode(before: String, after: String) -> Bool {
+        let markers: Set<Character> = ["$", "@", "#", "_", "/", "\\", "~", "<", ">", "=", "%", "&", "|", "^", "*", "+", "`"]
+        if let last = before.last {
+            if markers.contains(last) { return true }
+            if last == ".", before.dropLast().last?.isLetter == true { return true }
+        }
+        if let first = after.first {
+            if "_=/\\@(".contains(first) { return true }
+            if first == ".", after.dropFirst().first.map({ $0.isLetter || $0.isNumber }) == true { return true }
+        }
+        return false
+    }
 
     private static func lastWord(of text: String) -> String? {
         text.lowercased().split(whereSeparator: { !$0.isLetter }).last.map(String.init)

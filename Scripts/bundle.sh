@@ -3,13 +3,14 @@
 #   Scripts/bundle.sh             build only
 #   Scripts/bundle.sh --install   also install to /Applications and relaunch
 # Signs with the Developer ID from .env (IDENTITY_DARWIN_CODE) when there is one,
-# otherwise ad-hoc. VERSION sets the app version (default 1.0.0).
+# otherwise ad-hoc. VERSION sets the app version (default: the latest git tag).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source Scripts/load-env.sh
 
 APP=build/Accentuate.app
 ID=com.nbonamy.accentuate
+VERSION=${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed "s/^v//")}
 VERSION=${VERSION:-1.0.0}
 SIGN_IDENTITY=${IDENTITY_DARWIN_CODE:--}
 

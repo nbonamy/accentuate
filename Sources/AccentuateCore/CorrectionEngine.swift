@@ -19,10 +19,12 @@ public enum EngineAction: Equatable {
 /// the last word). The final . ! ? or return gets the same treatment, then a new sentence starts.
 public struct CorrectionEngine {
     public var selection: LanguageSelection = .auto
+    /// How sure we must be that the text is in the language before correcting it (0...1).
+    public var confidence = Confidence.standard
 
     private let suggester: AccentSuggesting
     private let detector: LanguageDetecting
-    private let minimumContextWords: Int
+    private let minimumContextWords: Int?
     private let maximumContextLength = 120
     private let maximumSentenceLength = 200
     /// Each re-judged word may cost a spell-checker call: while typing, only look at the latest ones.
@@ -37,7 +39,7 @@ public struct CorrectionEngine {
     private var rejectedWords: Set<String> = []
     private var lastCorrection: (original: String, replacement: String)?
 
-    public init(suggester: AccentSuggesting, detector: LanguageDetecting, minimumContextWords: Int = 3) {
+    public init(suggester: AccentSuggesting, detector: LanguageDetecting, minimumContextWords: Int? = nil) {
         self.suggester = suggester
         self.detector = detector
         self.minimumContextWords = minimumContextWords
@@ -71,7 +73,8 @@ public struct CorrectionEngine {
             return nil
 
         case .character(let character):
-            if character.isLetter || character.isNumber {
+            // "_" keeps identifiers (pre_commit) in one piece, which we then leave alone.
+            if character.isLetter || character.isNumber || character == "_" {
                 word.append(character)
                 remember(character)
                 return nil
@@ -145,9 +148,14 @@ public struct CorrectionEngine {
     }
 
     private func currentLanguage() -> Language? {
-        if case .fixed(let language) = selection { return language }
         let words = context.split { !$0.isLetter && !$0.isNumber }
-        return words.count >= minimumContextWords ? detector.detect(context) : nil
+        guard words.count >= (minimumContextWords ?? Confidence.contextWords(for: confidence)) else { return nil }
+        switch selection {
+        case .auto:
+            return detector.detect(context, minimumConfidence: confidence)
+        case .fixed(let language):
+            return detector.confidence(of: language, in: context) >= confidence ? language : nil
+        }
     }
 
     private mutating func remember(_ character: Character) {

@@ -63,6 +63,8 @@ struct SettingsView: View {
                     ToggleRow(title: "Correct accents as I type", isOn: $model.enabled)
                     Divider()
                     languageRow
+                    Divider()
+                    sensitivityRow
                 }
                 Card {
                     ToggleRow(title: "Start at login", isOn: $model.launchAtLogin)
@@ -77,7 +79,7 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .frame(width: 440, height: 600)
+        .frame(width: 440, height: 648)
         .onReceive(timer) { _ in model.refresh() }
     }
 
@@ -94,6 +96,21 @@ struct SettingsView: View {
             .fixedSize()
         }
         .frame(height: 44)
+    }
+
+    private var sensitivityRow: some View {
+        HStack {
+            Text("Sensitivity")
+            Spacer()
+            Picker("Sensitivity", selection: $model.sensitivity) {
+                ForEach(Sensitivity.allCases) { Text($0.name).tag($0) }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .fixedSize()
+        }
+        .frame(height: 44)
+        .help("How sure Accentuate must be that what you are typing is in your language before it adds accents.")
     }
 
     private var header: some View {
@@ -180,7 +197,7 @@ final class SettingsWindowController {
     private func makeWindow() -> NSWindow {
         let hosting = NSHostingView(rootView: SettingsView(model: model))
         hosting.sizingOptions = []
-        let size = NSSize(width: 440, height: 600)
+        let size = NSSize(width: 440, height: 648)
 
         let background: NSView
         if #available(macOS 26.0, *) {

@@ -1,14 +1,31 @@
 import Testing
 @testable import AccentuateCore
 
+/// Always says `language`, with total certainty.
 private struct FixedDetector: LanguageDetecting {
     var language: Language?
-    func detect(_ text: String) -> Language? { language }
+    func detect(_ text: String, minimumConfidence: Double) -> Language? { language }
+    func confidence(of candidate: Language, in text: String) -> Double { language == candidate ? 1 : 0 }
 }
 
 private final class ToggleDetector: LanguageDetecting {
     var language: Language?
-    func detect(_ text: String) -> Language? { language }
+    func detect(_ text: String, minimumConfidence: Double) -> Language? { language }
+    func confidence(of candidate: Language, in text: String) -> Double { language == candidate ? 1 : 0 }
+}
+
+/// Reports a fixed confidence for any language and records what it was asked for.
+private final class RecordingDetector: LanguageDetecting {
+    var minimums: [Double] = []
+    var confidence = 1.0
+    func detect(_ text: String, minimumConfidence: Double) -> Language? {
+        minimums.append(minimumConfidence)
+        return .french
+    }
+    func confidence(of candidate: Language, in text: String) -> Double {
+        minimums.append(-1)
+        return confidence
+    }
 }
 
 private final class FakeSuggester: AccentSuggesting {
@@ -108,13 +125,6 @@ struct CorrectionEngineTests {
         var engine = makeEngine()
         _ = type("ecole x", into: &engine)
         #expect(engine.process(.backspace) == nil)
-    }
-
-    @Test func aFixedLanguageSkipsDetection() {
-        var engine = makeEngine(french: false)
-        engine.selection = .fixed(.french)
-        _ = type("ecole", into: &engine)
-        #expect(engine.process(.character(" ")) != nil)
     }
 
     // What the suggester gets to see: the sentence typed so far.
@@ -232,12 +242,57 @@ struct CorrectionEngineTests {
         #expect(suggester.languages == [spanish])
     }
 
-    @Test func aFixedLanguageOverridesDetection() throws {
+    // Sensitivity: how sure we must be of the language, and how much text we want first.
+
+    // A language you pick is a promise about you, not about every word you type.
+
+    @Test func aChosenLanguageStillHasToLookLikeThatLanguage() {
+        let detector = RecordingDetector()
+        detector.confidence = 0.2 // the text around looks like something else, say English
+        var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector)
+        engine.selection = .fixed(.french)
+        #expect(type("$pre ok voila ecole ", into: &engine).isEmpty)
+
+        detector.confidence = 0.9
+        #expect(!type("ecole ", into: &engine).isEmpty)
+    }
+
+    @Test func aChosenLanguageIsUsedOnceTheTextLooksLikeIt() throws {
         let german = try #require(Language.withID("de"))
         let suggester = FakeSuggester()
-        var engine = CorrectionEngine(suggester: suggester, detector: FixedDetector(language: .french), minimumContextWords: 1)
+        var engine = CorrectionEngine(suggester: suggester, detector: FixedDetector(language: german), minimumContextWords: 1)
         engine.selection = .fixed(german)
         _ = type("ecole ", into: &engine)
         #expect(suggester.languages == [german])
+    }
+
+    @Test func theConfidenceIsWhatTheDetectorMustReach() {
+        let detector = RecordingDetector()
+        var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector)
+        engine.confidence = 0.8
+        _ = type("je suis alle a l ecole ", into: &engine)
+        #expect(Set(detector.minimums) == [0.8])
+    }
+
+    @Test func aChosenLanguageMustReachTheConfidenceToo() {
+        let detector = RecordingDetector()
+        detector.confidence = 0.7
+        var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector, minimumContextWords: 1)
+        engine.selection = .fixed(.french)
+        engine.confidence = 0.8
+        #expect(type("ecole ", into: &engine).isEmpty)
+        engine.confidence = 0.6
+        #expect(type("ecole ", into: &engine).count == 1)
+    }
+
+    @Test(arguments: [(0.9, 4), (0.8, 4), (0.6, 3), (0.5, 3), (0.45, 2)])
+    func moreConfidenceAsksForMoreWords(_ confidence: Double, _ words: Int) {
+        let detector = RecordingDetector()
+        var engine = CorrectionEngine(suggester: FakeSuggester(), detector: detector)
+        engine.confidence = confidence
+        _ = type(String(repeating: "mot ", count: words - 1), into: &engine)
+        #expect(detector.minimums.isEmpty)
+        _ = type("mot ", into: &engine)
+        #expect(!detector.minimums.isEmpty)
     }
 }

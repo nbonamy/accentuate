@@ -25,6 +25,11 @@ enum Settings {
         set { set(newValue, forKey: "language") }
     }
 
+    static var sensitivity: Sensitivity {
+        get { defaults.string(forKey: "sensitivity").flatMap(Sensitivity.init) ?? .balanced }
+        set { set(newValue.rawValue, forKey: "sensitivity") }
+    }
+
     static var languageSelection: LanguageSelection {
         Language.withID(language).map { .fixed($0) } ?? .auto
     }

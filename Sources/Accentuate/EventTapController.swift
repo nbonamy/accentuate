@@ -97,6 +97,7 @@ final class EventTapController {
             return passThrough
         }
         engine.selection = Settings.languageSelection
+        engine.confidence = Settings.sensitivity.confidence
 
         guard let input = keyInput(for: event) else {
             engine.process(.reset)

@@ -218,4 +218,36 @@ struct AccentSuggesterTests {
         }
         #expect(suggester.replacement(for: "strasse", in: "die strasse", language: german) == "straße")
     }
+
+    // Code and identifiers are not prose.
+
+    @Test(arguments: ["voir $", "voir @", "voir #", "voir `", "voir /usr/", "voir a_", "voir file."])
+    func leavesCodeLookingTokensAlone(_ before: String) {
+        let (suggester, checker) = makeSuggester {
+            $0.misspelled = ["pre"]
+            $0.guessTable["pre"] = ["pré"]
+        }
+        #expect(suggester.replacement(for: "pre", before: before, after: "", language: .french) == nil)
+        #expect(checker.guessCalls == 0)
+    }
+
+    @Test(arguments: ["_commit", ".sh", "=1", "(x)", "/bin", "@home"])
+    func leavesTokensFollowedByCodeAlone(_ after: String) {
+        let (suggester, _) = makeSuggester {
+            $0.misspelled = ["pre"]
+            $0.guessTable["pre"] = ["pré"]
+        }
+        #expect(suggester.replacement(for: "pre", before: "voir ", after: after, language: .french) == nil)
+    }
+
+    @Test func hyphensAndApostrophesStayPartOfFrench() {
+        let (suggester, _) = makeSuggester {
+            $0.misspelled = ["etre", "ecole"]
+            $0.guessTable["etre"] = ["être"]
+            $0.guessTable["ecole"] = ["école"]
+        }
+        #expect(suggester.replacement(for: "etre", before: "peut-", after: "", language: .french) == "être")
+        #expect(suggester.replacement(for: "ecole", before: "l'", after: "", language: .french) == "école")
+        #expect(suggester.replacement(for: "ecole", before: "l’", after: "", language: .french) == "école")
+    }
 }
